@@ -10,12 +10,8 @@
 #                                                                              #
 # **************************************************************************** #
 
-GREEN := \033[0;32m
-YELLOW := \033[1;33m
-RESET := \033[0m
-
 install:
-	@echo "$(GREEN)Installing dependencies...$(RESET)"
+	@echo "Installing dependencies..."
 	@uv sync
 	@uv pip install flake8 mypy pydantic numpy
 
@@ -26,7 +22,7 @@ debug:
 	uv run python -m pdb -m src
 
 clean:
-	@echo "$(YELLOW)Cleaning build files...$(RESET)"
+	@echo "Cleaning build files..."
 	@find . -type d -name "__pycache__" -exec rm -rf {} +
 	@find . -type d -name ".mypy_cache" -exec rm -rf {} +
 	@rm -rf .pytest_cache data/output
