@@ -1,4 +1,15 @@
-.PHONY: install run debug lint lint-strict
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    Makefile                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: dcheng <dcheng@student.42kl.edu.my>        +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/04/22 11:21:10 by dcheng            #+#    #+#              #
+#    Updated: 2026/04/22 11:21:10 by dcheng           ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
 RESET := \033[0m
@@ -27,3 +38,5 @@ lint:
 lint-strict:
 	uv run flake8 src/
 	uv run mypy src/ --strict
+
+.PHONY: install run debug lint lint-strict
