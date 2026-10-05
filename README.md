@@ -224,11 +224,10 @@ The code is purposely educational and intentionally narrow in scope. It is focus
 
 ## Resources
 
-- Hugging Face documentation on causal language models
-- Hugging Face/tokenizer documentation for vocabularies and tokenization
-- Pydantic documentation for schema validation
-- Python documentation for `argparse`, `json`, `os`, and `sys`
-- Articles on constrained decoding and structured generation for LLMs
+- [bpe tokenization](https://huggingface.co/learn/nlp-course/en/chapter6/5)
+- [qwen tool calling format](https://qwen.readthedocs.io/en/latest/framework/function_call.html)
+- [qwen3 documentation](https://qwen.readthedocs.io/en/latest/)
+- [pydantic documentation](https://docs.pydantic.dev/)
 
 ### AI usage
 
