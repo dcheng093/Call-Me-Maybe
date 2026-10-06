@@ -30,7 +30,7 @@ class CustomTokenizer(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
-    @field_validator("vocab_json_path")
+    @field_validator("vocab_json_path", mode="after")
     @classmethod
     def path_must_be_non_empty(cls, v: str) -> str:
         """

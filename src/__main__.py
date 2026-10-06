@@ -26,7 +26,11 @@ def parse_arguments() -> argparse.Namespace:
             - output (str): path where results will be written.
     """
     parser = argparse.ArgumentParser(
-        description="Call Me Maybe"
+        prog="Call Me Maybe",
+        description=(
+            "Grammar-constrained function that enforces local LLMs to"
+            " output valid JSON schema arguments without free-form text gen"
+        )
     )
     parser.add_argument(
         "--functions_definition",
@@ -77,10 +81,10 @@ def main() -> None:
             missing.append(args.functions_definition)
         if not input_exists:
             missing.append(args.input)
-        print(
-            "Error: The following required input file(s) were not found:\n"
-            + "\n".join(f"  - {p}" for p in missing)
-        )
+        if missing:
+            print("Error: File not found:")
+            for file in missing:
+                print(f"- {file}")
         sys.exit(1)
 
     output_dir = os.path.dirname(args.output)
