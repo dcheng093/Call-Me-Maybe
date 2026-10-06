@@ -88,7 +88,7 @@ def main() -> None:
         sys.exit(1)
 
     output_dir = os.path.dirname(args.output)
-    if output_dir and not os.path.exists(output_dir):
+    if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
     try:
