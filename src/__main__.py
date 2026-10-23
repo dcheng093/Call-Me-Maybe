@@ -101,6 +101,17 @@ def main() -> None:
         print(f"Details: {e}")
         sys.exit(1)
 
+    if not isinstance(functions_data, list) or not all(
+        isinstance(fn, dict) for fn in functions_data
+    ):
+        print("Error: The functions definition must be a list of objects!")
+        sys.exit(1)
+    if not isinstance(prompts_data, list) or not all(
+        isinstance(item, dict) for item in prompts_data
+    ):
+        print("Error: The input prompts must be a list of objects!")
+        sys.exit(1)
+
     schema_metadata = parse_function_schemas(functions_data)
     model = Small_LLM_Model()
     vocab_path = model.get_path_to_vocab_file()
@@ -130,21 +141,22 @@ def main() -> None:
             input_ids = np.array(raw_encoded).flatten().tolist()
 
         for token_step in range(300):
-            normalized_text = "".join(rulebook.text_so_far.split())
-            if normalized_text.endswith("}}"):
+            if rulebook.is_complete():
+                break
+
+            allowed_token_ids = tokenizer.get_allowed_token_ids(rulebook)
+            if not allowed_token_ids:
+                # Grammar dead end: stop instead of generating unconstrained
+                print("   No valid token left, stopping generation.")
                 break
 
             logits = model.get_logits_from_input_ids(input_ids)
             logits = np.array(logits).flatten()
             custom_mask = np.full_like(logits, -float("inf"))
 
-            allowed_token_ids = tokenizer.get_allowed_token_ids(rulebook)
-            if allowed_token_ids:
-                for token_id in allowed_token_ids:
-                    if token_id < len(custom_mask):
-                        custom_mask[token_id] = 0.0
-            else:
-                custom_mask.fill(0.0)
+            for token_id in allowed_token_ids:
+                if token_id < len(custom_mask):
+                    custom_mask[token_id] = 0.0
 
             total_vocab_size = len(tokenizer.vocab)
             masked_count = total_vocab_size - len(allowed_token_ids)
@@ -169,8 +181,7 @@ def main() -> None:
                 f"State: {YELLOW}{repr(rulebook.text_so_far)}{RESET}"
             )
 
-            normalized_text = "".join(rulebook.text_so_far.split())
-            if normalized_text.endswith("}}"):
+            if rulebook.is_complete():
                 msg = (
                     f"   \n{GREEN}Final Structural "
                     f"Closure Confirmed: {RESET}"
@@ -195,10 +206,12 @@ def main() -> None:
                 p_name: p_type
                 for p_name, p_type in schema_metadata.get(func_name, [])
             }
-            normalized_params: dict[str, int | float | str] = {}
+            normalized_params: dict[str, bool | int | float | str] = {}
             for k, v in raw_params.items():
                 p_type = param_types.get(k, "string")
-                if p_type == "integer":
+                if p_type == "boolean":
+                    normalized_params[k] = bool(v)
+                elif p_type == "integer":
                     normalized_params[k] = int(v)
                 elif p_type == "number":
                     normalized_params[k] = float(v)

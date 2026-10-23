@@ -225,6 +225,7 @@ The code is purposely educational and intentionally narrow in scope. It is focus
 ## Resources
 
 - [bpe tokenization](https://huggingface.co/learn/nlp-course/en/chapter6/5)
+- [more bpe tokenization](https://zeroentropy.dev/concepts/bpe-tokenization/)
 - [qwen tool calling format](https://qwen.readthedocs.io/en/latest/framework/function_call.html)
 - [qwen3 documentation](https://qwen.readthedocs.io/en/latest/)
 - [pydantic documentation](https://docs.pydantic.dev/)
