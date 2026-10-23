@@ -1,4 +1,57 @@
-from typing import Dict, List, Tuple
+import json
+from typing import Dict, List, Optional, Tuple
+
+NUMBER_CHARS = "0123456789.-eE+"
+NUMBER_ACCEPTING = {"zero", "int", "frac", "exp_digits"}
+
+
+def _next_number_state(
+    state: str, char: str, integer_only: bool
+) -> Optional[str]:
+    """
+    Advances the JSON number state machine by one character.
+
+    Follows the JSON number grammar: -?(0|[1-9][0-9]*)(.[0-9]+)?
+    ([eE][+-]?[0-9]+)?  Integers stop after the whole part.
+
+    Args:
+        state: The current state name ("start" before any character).
+        char: The next character to consume.
+        integer_only: True if fractions and exponents are not allowed.
+
+    Returns:
+        The next state name, or None if the character is not allowed.
+    """
+    is_digit = char.isdigit()
+    if state in ("start", "sign"):
+        if state == "start" and char == "-":
+            return "sign"
+        if char == "0":
+            return "zero"
+        if is_digit:
+            return "int"
+        return None
+    if state in ("zero", "int"):
+        if state == "int" and is_digit:
+            return "int"
+        if integer_only:
+            return None
+        if char == ".":
+            return "dot"
+        if char in "eE":
+            return "exp"
+        return None
+    if state in ("dot", "frac"):
+        if is_digit:
+            return "frac"
+        if state == "frac" and char in "eE":
+            return "exp"
+        return None
+    if state == "exp" and char in "+-":
+        return "exp_sign"
+    if state in ("exp", "exp_sign", "exp_digits") and is_digit:
+        return "exp_digits"
+    return None
 
 
 class TrieJSONRulebook:
@@ -37,11 +90,6 @@ class TrieJSONRulebook:
             A list of single-character strings that are valid next inputs
             given the current `text_so_far` and the enforced schema.
         """
-        normalized_text = "".join(self.text_so_far.split())
-
-        if normalized_text.endswith("}}"):
-            return []
-
         text = self.text_so_far.lstrip()
         if not text:
             return ["{", " "]
@@ -84,11 +132,19 @@ class TrieJSONRulebook:
                 params = self.schema[func_name]
 
                 ptr = 0
+                if not params:
+                    # No parameters: the inner object is just "{}"
+                    if ptr == len(remaining):
+                        return ['}']
+                    if remaining[ptr] != '}':
+                        return []
+                    ptr += 1
+
                 for idx, (p_name, p_type) in enumerate(params):
                     expected_key = f'"{p_name}":'
 
                     if ptr == len(remaining):
-                        return [expected_key]
+                        return [expected_key[0]]
 
                     if remaining[ptr:].startswith(expected_key):
                         ptr += len(expected_key)
@@ -124,67 +180,62 @@ class TrieJSONRulebook:
                         if found_close:
                             ptr = close_idx + 1
                         else:
+                            trailing = len(remaining) - len(
+                                remaining.rstrip('\\')
+                            )
+                            if trailing % 2 == 1:
+                                # Inside an escape: only valid JSON escapes
+                                return list('"\\/bfnrt')
                             text_chars = [
                                 chr(c) for c in range(32, 127)
                                 if chr(c) != '"'
                             ]
                             return text_chars + ['"']
                     elif p_type == "boolean":
-                        expected_end = ',' if idx < len(params) - 1 else '}'
-                        bool_true = "true"
-                        bool_false = "false"
+                        # Consume the literal only; the separator after it
+                        # is handled by the shared code below
                         written = remaining[ptr:]
-
-                        if bool_true.startswith(written):
-                            next_true = (
-                                [bool_true[len(written)]]
-                                if len(written) < len(bool_true)
-                                else [expected_end]
-                            )
-                        else:
-                            next_true = []
-
-                        if bool_false.startswith(written):
-                            next_false = (
-                                [bool_false[len(written)]]
-                                if len(written) < len(bool_false)
-                                else [expected_end]
-                            )
-                        else:
-                            next_false = []
-
-                        allowed_bool = list(set(next_true + next_false))
-                        if not allowed_bool:
-                            return []
-
-                        if written in (bool_true, bool_false):
-                            ptr += len(written)
-                        else:
+                        literal_done = False
+                        for literal in ("true", "false"):
+                            if written.startswith(literal):
+                                ptr += len(literal)
+                                literal_done = True
+                                break
+                        if not literal_done:
+                            allowed_bool = [
+                                literal[len(written)]
+                                for literal in ("true", "false")
+                                if literal.startswith(written)
+                            ]
                             return allowed_bool
                     else:
                         expected_end = ',' if idx < len(params) - 1 else '}'
-                        num_chars = (
-                            "0123456789-"
-                            if p_type == "integer"
-                            else "0123456789.-eE+"
-                        )
-                        end_found = False
+                        state = "start"
 
-                        for k in range(ptr, len(remaining)):
-                            if remaining[k] == expected_end:
-                                if k > ptr:
-                                    end_found = True
-                                    ptr = k
-                                    break
+                        # Stop on the separator without consuming it; the
+                        # shared separator code below consumes it once
+                        while ptr < len(remaining):
+                            char = remaining[ptr]
+                            if char == expected_end:
+                                if state not in NUMBER_ACCEPTING:
+                                    return []
+                                break
+                            next_state = _next_number_state(
+                                state, char, p_type == "integer"
+                            )
+                            if next_state is None:
                                 return []
-                            elif remaining[k] not in num_chars:
-                                return []
-
-                        if end_found:
+                            state = next_state
                             ptr += 1
-                        else:
-                            allowed = list(num_chars)
-                            if len(remaining) > ptr:
+
+                        if ptr == len(remaining):
+                            allowed = [
+                                char for char in NUMBER_CHARS
+                                if _next_number_state(
+                                    state, char, p_type == "integer"
+                                ) is not None
+                            ]
+                            if state in NUMBER_ACCEPTING:
                                 allowed.append(expected_end)
                             return allowed
 
@@ -210,6 +261,26 @@ class TrieJSONRulebook:
                 return []
 
         return []
+
+    def is_complete(self) -> bool:
+        """
+        Checks if the generated text is a finished function call.
+
+        The grammar allows nothing after the closing brace, and no proper
+        prefix of a JSON object parses, so the call is complete exactly
+        when no character is allowed and the text is valid JSON.  This
+        avoids stopping early on a string value that contains "}}".
+
+        Returns:
+            True if the function call JSON is complete, False otherwise.
+        """
+        if self.get_allowed_characters():
+            return False
+        try:
+            json.loads(self.text_so_far)
+        except json.JSONDecodeError:
+            return False
+        return True
 
     def can_walk_token(self, token_string: str) -> bool:
         """
